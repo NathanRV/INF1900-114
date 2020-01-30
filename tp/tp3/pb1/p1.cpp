@@ -18,9 +18,9 @@
 
 #include <avr/io.h>
 #include <util/delay.h>
+#include <util/delay_basic.h>
 
 #define F_CPU 8000000UL
-
 
 const int COLOR_GREEN = 0b01;
 const int COLOR_RED = 0b10;
@@ -29,15 +29,12 @@ const int COLOR_NONE = 0b00;
 const int OUTPUT_PORT = 0xff;
 const int INPUT_PORT = 0x00;
 
-const int PERIOD = 1000;      //in us (microseconds)
+const int PERIOD = 1000;   //in us (microseconds)
 const int RUN_TIME = 3000; //in ms (miliseconds)
 
-void delay(int nombre)
+void delay(int us)
 {
-    for (int i = 0; i < nombre; i++)
-    {
-        _delay_us(1);
-    }
+    _delay_loop_2(F_CPU / (4000000) * us);
 }
 
 int main()
@@ -47,31 +44,31 @@ int main()
     DDRC = OUTPUT_PORT;
     DDRD = INPUT_PORT;
 
-    for(;;){
+    for (;;)
+    {
 
-        for(int i = 0; i<RUN_TIME;i++){
-            int a = floor(i/1.5);
+        for (int i = 0; i < RUN_TIME; i++)
+        {
+            int decrementIntensity = floor(i * PERIOD / RUN_TIME);
 
             PORTC = COLOR_RED;
-            delay(PERIOD-a);
+            delay(PERIOD - decrementIntensity);
 
             PORTC = COLOR_NONE;
-            delay(a);
+            delay(decrementIntensity);
         }
 
-
-        for(int i = 0; i<RUN_TIME;i++){
-            int a = floor(i/1.5);
+        for (int i = 0; i < RUN_TIME; i++)
+        {
+            int decrementIntensity = floor(i * PERIOD / RUN_TIME);
 
             PORTC = COLOR_GREEN;
-            delay(PERIOD-a);
+            delay(PERIOD - decrementIntensity);
 
             PORTC = COLOR_NONE;
-            delay(a);
+            delay(decrementIntensity);
         }
-
     }
 
     return 0;
 }
-
