@@ -63,44 +63,49 @@ void increaseState(State &currentState) //increases the state to the next one in
 
 void spinWheelVaryingIntensity(int intensity, int period, bool isGoingForward)
 {
-    int loopIterations = round(RUN_TIME / period * SECONDS_TO_MILI);
+    long loopIterations = round(RUN_TIME / period);
     int ratioPercentage = intensity * 100 / 4;
-    int upTime = period * ratioPercentage / 100;
+    int upTime = period * ratioPercentage / 100 - 1;
+
+    if (upTime <= 0)
+    {
+        upTime = 1;
+    }
 
     if (isGoingForward)
     {
-        for (int i = 0; i < loopIterations; i++)
+        for (long i = 0; i < loopIterations; i++)
         {
             PORTB = FORWARDS;
-            delayUS(upTime);
+            delayMS(upTime);
 
             PORTB = STILL;
-            delayUS(period - upTime);
+            delayMS(period - upTime);
         }
     }
     else
     {
-        for (int i = 0; i < loopIterations; i++)
+        for (long i = 0; i < loopIterations; i++)
         {
             PORTB = BACKWARDS;
-            delayUS(upTime);
+            delayMS(upTime);
 
             PORTB = STILL;
-            delayUS(period - upTime);
+            delayMS(period - upTime);
         }
     }
 };
 
 void runVaryingFrequency(int frequency)
 {
-    int period = round(1000000.0 / frequency); //in us (microseconds)
-                                               //State currentState = State::ZERO;
+    int period = round(1000.0 / frequency); //in us (microseconds)
+    State currentState = State::ZERO;
 
-    //for (int i = 0; i < NB_STATES; i++)
-    //{
-    spinWheelVaryingIntensity(/*int{currentState}*/ 1, period, true);
-    //increaseState(currentState);
-    //}
+    for (int i = 0; i < NB_STATES; i++)
+    {
+        spinWheelVaryingIntensity(int{currentState}, period, true);
+        increaseState(currentState);
+    }
 };
 
 int main()
@@ -110,23 +115,8 @@ int main()
     DDRC = OUTPUT_PORT;
     DDRD = INPUT_PORT;
 
-    //spinWheelVaryingIntensity(1, 16667, true);
-    for (;;)
-    {
-        PORTB = FORWARDS;
-        delayMS(4000);
-        PORTB = STILL;
-        delayMS(4000);
-    }
-
-    /*    for (int i = 0;;)
-    {
-        PORTB = FORWARDS;
-        delayUS(4000);
-    }*/
-
     runVaryingFrequency(60);
-    //runVaryingFrequency(400);
+    runVaryingFrequency(400);
 
     return 0;
 }
