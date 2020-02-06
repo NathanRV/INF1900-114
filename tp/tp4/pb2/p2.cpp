@@ -84,26 +84,8 @@ void startTimer(uint16_t duration)
     // interruption after the required duration
     OCR1A = duration;
 
-    //TCCR1A = 0b01010000;
-    /*
-        7-6:Compare output mode channel A
-        5-4:Compare output mode channel B
-        3-2:Reserved
-        1-0: ??
-        Not necessary for this situation
-    */
-
-    TCCR1B = 0b00000011; //|= (1 << CS11);
-    // last three digits are prescaler
-    /*  Bit order and signification
-        7:Filter to have 4 CPU actions per clock cycle (1 = on)
-        6:Rising (1) or falling (0) edge
-        5:Reserved
-        4-3:PTCCRnA thing
-        2-0:Clock Select
-    */
-
-    //TCCR1C = 0;
+    TCCR1B = 0b00000010; //
+    // last three digits are prescaler (prescaler of 8=010)
 
     TIMSK1 |= (1 << TOIE1);//= 0b00000100;
     //Overflow Interrupt enabled //masque
@@ -115,21 +97,23 @@ void startTimer(uint16_t duration)
 
 /*
     65535/8 000 000=8,192ms = max delay
-    upon using prescaler of 64 timer frequency = 125Khz
-    65535/125 000=0,52428s
-    10s /0,52428 s=19,07 
-    should overflow 19 times
+    upon using prescaler of 8 timer frequency = 1000Khz
+    65535/1 000 000=0,065535s
+    10s /0,065535 s=152,59 
+    should overflow 153 times
+    1s/0,065535s=15,25
+    should overflow 15
 */
 ISR(TIMER1_OVF_vect)
 {
     tot_overflow++;
-    if(tot_overflow< 2 && timeExpired && buttonPressed){
+    if(tot_overflow< 15 && timeExpired && buttonPressed){
         printGreenLight();
     }
-    else if(tot_overflow> 2 && timeExpired && !buttonPressed){
+    else if(tot_overflow> 15 && timeExpired && !buttonPressed){
         printRedLight();
     }
-    if (tot_overflow> 19 && !timeExpired)
+    if (tot_overflow> 153 && !timeExpired)
     {
         printRedLight();
         delayMS(100);
