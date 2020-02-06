@@ -76,38 +76,6 @@ void initialisation(void)
     sei();
 }
 
-
-/*
-    65535/8 000 000=8,192ms = max delay
-    upon using prescaler of 64 timer frequency = 125Khz
-    65535/125 000=0,52428s
-    10s /0,52428 s=19,07 
-    should overflow 19 times
-*/
-ISR(TIMER1_OVF_vect)
-{
-    tot_overflow++;
-    if (tot_overflow > 19)
-    {
-        printRedLight();
-        delayMS(100);
-        printNoLight();
-        tot_overflow = 0;
-    }
-}
-
-/*ISR(INT0_vect)
-{
-    _delay_ms(30);
-
-    if (IS_PRESSED)
-    {
-        buttonPressed = true;
-    }
-
-    EIFR |= (1 << INTF0);
-}*/
-
 void startTimer(uint16_t duration)
 {
     //CTC mode of the timer 1 with the clock divided by 1024 (2^10)
@@ -121,10 +89,12 @@ void startTimer(uint16_t duration)
         7-6:Compare output mode channel A
         5-4:Compare output mode channel B
         3-2:Reserved
-        1-0:
+        1-0: ??
+        Not necessary for this situation
     */
 
     TCCR1B = 0b00000011; //|= (1 << CS11);
+    // last three digits are prescaler
     /*  Bit order and signification
         7:Filter to have 4 CPU actions per clock cycle (1 = on)
         6:Rising (1) or falling (0) edge
@@ -142,6 +112,46 @@ void startTimer(uint16_t duration)
     tot_overflow = 0;
 }
 
+
+/*
+    65535/8 000 000=8,192ms = max delay
+    upon using prescaler of 64 timer frequency = 125Khz
+    65535/125 000=0,52428s
+    10s /0,52428 s=19,07 
+    should overflow 19 times
+*/
+ISR(TIMER1_OVF_vect)
+{
+    tot_overflow++;
+    if(tot_overflow< 2 && timeExpired && buttonPressed){
+        printGreenLight();
+    }
+    else if(tot_overflow> 2 && timeExpired && !buttonPressed){
+        printRedLight();
+    }
+    if (tot_overflow> 19 && !timeExpired)
+    {
+        printRedLight();
+        delayMS(100);
+        printNoLight();
+        tot_overflow = 0;
+        timeExpired=true;
+    }
+}
+
+ISR(INT0_vect)
+{
+    _delay_ms(30); //rebound filter
+
+    if (IS_PRESSED && timeExpired && !buttonPressed)
+    {
+        buttonPressed = true;
+    }
+
+    EIFR |= (1 << INTF0);
+}
+
+
 int main()
 {
     initialisation();
@@ -150,6 +160,6 @@ int main()
     while (1)
     {
         //do nothing
-        //interrupts handle situation
+        //interrupts handle situations
     }
 }
