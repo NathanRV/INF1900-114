@@ -1,53 +1,47 @@
 #define F_CPU 8000000
 
-
-#include <avr/io.h> 
+#include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
+#include <memoire_24.h>
 
 const uint8_t OUTPUT_PORT = 0xff;
 const uint8_t INPUT_PORT = 0x00;
+const uint8_t RED = 0b10;
+const uint8_t GREEN = 0b01;
 
-void ajustementPWM (uint8_t pourcentage) {
-
-    // mise à un des sorties OC1A et OC1B sur comparaison
-
-    // réussie en mode PWM 8 bits, phase correcte
-
-    // et valeur de TOP fixe à 0xFF (mode #1 de la table 17-6
-
-    // page 177 de la description technique du ATmega324PA)
-
-    OCR1A = pourcentage; 
-    //Output compare Register 1A correspond à D6 (OC1A)
-    
-    OCR1B = pourcentage;
-    //Output compare Register 1B correspond à D5 (OC1B)
-    
-    // division d'horloge par 8 - implique une frequence de PWM fixe
-
-    //Voir p.123 & section 16.10.4
-    TCCR1A |= (1 << WGM10) | (1 << COM1A1) | (1 << COM1B1); //Table 16-4.
-    //  COM1A1&COM1B1:Clear OCnA/OCnB on Compare Match when up-counting. 
-    //  Set OCnA/OCnB on Compare Match when downcounting.
-    //  WGM10:PWM, phase correct, 8-bit
-    TCCR1B |= (1 << CS11); //prescaler 8
-
-    TCCR1C = 0; 
-}
-
-int main(){
-    TCNT1 = 0; //intialise counter at 0
+int main()
+{
     DDRD = OUTPUT_PORT;
-    ajustementPWM(255); //100%
-    _delay_ms(2000);
-    ajustementPWM(191); //75%
-    _delay_ms(2000);
-    ajustementPWM(127); //50%
-    _delay_ms(2000);
-    ajustementPWM(64); //25%
-    _delay_ms(2000);
-    ajustementPWM(0); //0%
+    const uint8_t longueur = 45;
+    char chain[] = "*P*O*L*Y*T*E*C*H*N*I*Q*U*E* *M*O*N*T*R*E*A*L*";
 
+    Memoire24CXXX memoire; //call default constructor
+    memoire.ecriture(0x00, (uint8_t *)&chain, longueur); //write to mem
+
+    //delay 5 ms to give time to write memory
+    _delay_ms(5);
+
+    char readChain[45]; //initialize empty char table
+    memoire.lecture(0x00, (uint8_t *)&readChain, longueur); //read value
+
+
+    bool identic = true;
+    for (int i = 0; i < longueur; i++)
+    {
+        if (chain[i] != readChain[i])
+        {
+            identic = false;
+        }
+    }
+
+    if (identic == true)
+    {
+        PORTD = GREEN;
+    }
+    else
+    {
+        PORTD = RED;
+    }
     return 0;
 }
