@@ -21,8 +21,8 @@ void initialisationUART(void)
 
     UCSR0A =0;
 
-    UCSR0B |= (1 << RXEN0) | (1 << TXEN0);// (1 << RXCIE0) | (1 << TXCIE0)  
-    //modifie receive,transfer flags enable : receive,transfer enabled
+    UCSR0B |= (1 << RXEN0) | (1 << TXEN0); 
+    //modifie  receive,transfer enabled
 
     // Format des trames: 8 bits, 1 stop bits, none parity
 

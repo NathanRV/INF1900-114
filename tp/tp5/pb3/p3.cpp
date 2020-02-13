@@ -1,53 +1,73 @@
-#define F_CPU 8000000
+#define F_CPU 8000000UL
 
-
-#include <avr/io.h> 
+#include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
+#include <memoire_24.h>
 
 const uint8_t OUTPUT_PORT = 0xff;
 const uint8_t INPUT_PORT = 0x00;
 
-void ajustementPWM (uint8_t pourcentage) {
+void initialisationUART(void)
+{
+    // 2400 bauds. Nous vous donnons la valeur des deux
+    // premier registres pour vous éviter des complications
+    UBRR0H = 0;
+    UBRR0L = 0xCF;
 
-    // mise à un des sorties OC1A et OC1B sur comparaison
+    // permettre la réception et la transmission par le UART0
+    UCSR0A =0;
 
-    // réussie en mode PWM 8 bits, phase correcte
+    UCSR0B |= (1 << RXEN0) | (1 << TXEN0); //modifie  receive,transfer enabled
 
-    // et valeur de TOP fixe à 0xFF (mode #1 de la table 17-6
-
-    // page 177 de la description technique du ATmega324PA)
-
-    OCR1A = pourcentage; 
-    //Output compare Register 1A correspond à D6 (OC1A)
-    
-    OCR1B = pourcentage;
-    //Output compare Register 1B correspond à D5 (OC1B)
-    
-    // division d'horloge par 8 - implique une frequence de PWM fixe
-
-    //Voir p.123 & section 16.10.4
-    TCCR1A |= (1 << WGM10) | (1 << COM1A1) | (1 << COM1B1); //Table 16-4.
-    //  COM1A1&COM1B1:Clear OCnA/OCnB on Compare Match when up-counting. 
-    //  Set OCnA/OCnB on Compare Match when downcounting.
-    //  WGM10:PWM, phase correct, 8-bit
-    TCCR1B |= (1 << CS11); //prescaler 8
-
-    TCCR1C = 0; 
+    // Format des trames: 8 bits, 1 stop bits, none parity
+    UCSR0C |= (1 << UCSZ11) | (1 << UCSZ10); //char size
 }
 
-int main(){
-    TCNT1 = 0; //intialise counter at 0
+// De l'USART vers le PC
+
+void transmissionUART(uint8_t donnee)
+{
+    /* Wait for empty transmit buffer */
+    while (!(UCSR0A & (1 << UDRE0))){};
+    /* Copy 9th bit to TXB8 */
+    UCSR0B &= ~(1 << TXB80);
+
+    if (donnee & 0x0100){
+        UCSR0B |= (1 << TXB80);
+    }
+    /* Put data into buffer, sends the data */
+    UDR0 = donnee;
+}
+
+
+void ecrireMessageMemoire(Memoire24CXXX* memoire,uint8_t* chain) {  
+    memoire->ecriture(0x00,chain, sizeof(chain));
+    _delay_ms(5);
+}
+
+int main()
+{
+    //Initialisation
     DDRD = OUTPUT_PORT;
-    ajustementPWM(255); //100%
-    _delay_ms(2000);
-    ajustementPWM(191); //75%
-    _delay_ms(2000);
-    ajustementPWM(127); //50%
-    _delay_ms(2000);
-    ajustementPWM(64); //25%
-    _delay_ms(2000);
-    ajustementPWM(0); //0%
+    initialisationUART();
+    Memoire24CXXX memoire = Memoire24CXXX();
+    
+    //message
+    char chain[] = "*P*O*L*Y*T*E*C*H*N*I*Q*U*E* *M*O*N*T*R*E*A*L*";  
+
+
+    //Écriture message en memoire
+    ecrireMessageMemoire(&memoire,(uint8_t*) &chain);
+
+    char readChain[0xff]; //initialize empty char table
+    memoire.lecture(0x00, (uint8_t *)&readChain, sizeof(chain)); //read value
+
+    //transmission UART
+    for(uint8_t j=0;j<sizeof(readChain)-1;j++){
+        transmissionUART(readChain[j]);
+    }
 
     return 0;
 }
+
