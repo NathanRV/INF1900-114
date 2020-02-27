@@ -1,3 +1,37 @@
+/*
+    Date:       27-02-2020
+    Authors:    David Saikali, 2015144
+                Nathan Ramsay-Vejlens 1989944
+    File name:  p1.cpp
+*/
+
+/*
+    IO description: 
+    The output LED is connected to PORTC, specifically C1 and C2, 
+    using a wire we prepared.
+    The input is the interrupt button found on the breadboard as well as 
+    the timer register inside the motherboard. 
+    It is connected to PORTD through a wire. PORTA gives the power to the breadboard.
+    The breadboard follows the setup given on the website.
+
+    General description:
+    The LED follows a series of predefined light colors starting after the interruptions.
+*/
+
+/*      The following table shows the possible states and state relations 
++---------------+----------------------------------------+------------+----------+
+| Current State | Input                                  | Next State | Output   |
++---------------+----------------------------------------+------------+----------+
+| INIT          | None                                   | INIT       | None     |
++---------------+----------------------------------------+------------+----------+
+| INIT          | INT0 followed by INT0 or TIMER1_COMPA  | CONDITION  | None     |
++---------------+----------------------------------------+------------+----------+
+| CONDITION     | None                                   | INIT       | Multiple |
++---------------+----------------------------------------+------------+----------+
+| NB_STATES     | None                                   | INIT       | None     |
++---------------+----------------------------------------+------------+----------+
+*/
+
 #define F_CPU 8000000
 
 #include <avr/io.h>
@@ -15,20 +49,16 @@ volatile bool isButtonHeld = true;
 volatile bool conditionFulfilled = false;
 volatile uint8_t counterRunTimes;
 
-//Delay miliseconds function (NOT WORKING RIGHT BECAUSE CONVERSION UINT8_T INT)
-void delayMs(uint8_t Ms){
-    if(Ms<0){
-        Ms=-Ms;
-    }
-    uint8_t ms=Ms;
-    for(uint8_t i=0;i<ms;i++){ //delay 1 s
+//Delay miliseconds function 
+void delayMs(uint16_t ms){
+    for(uint16_t i=0;i<ms;i++){ //delay x ms
         _delay_loop_2(2000); //4 CPU cycles * 2 000=8 000
-        //8 000*Ms=8 000 000 instructions = 1sec
+        //8 000*1000Ms=8 000 000 instructions = 1sec
     }
 
 }
 
-//États
+//States
 enum State
 {
     INIT = 0,//Timer starts
@@ -44,7 +74,7 @@ volatile State currentState = State::INIT;
     125 000 instruc/s
     10 increment/s so 12 500 duration to have 1 increment per 0,1s
 */
-void partirMinuterie(){
+void startTimer(){
     //CTC mode of the timer 1 with the clock divided by 1024 (2^10)
     TCNT1 = 0;
 
@@ -64,39 +94,33 @@ void partirMinuterie(){
 void increaseState(volatile State &currentState)
 {
     int stateNum = int{currentState};
-    stateNum = (stateNum+ 1) % NB_STATES; //recommence a INIT si on atteint la fin des states
+    stateNum = (stateNum+ 1) % NB_STATES; //reset to INIT if reached end
     currentState = static_cast<State>(stateNum);
 }
 
 void initialisation(void)
 {
-    // cli est une routine qui bloque toutes les interruptions.
-    // Il serait bien mauvais d'être interrompu alors que
-     //le microcontroleur n'est pas prêt...
+    // cli blocks interruptions
     cli();
 
-    // configurer et choisir les ports pour les entrées
-    // et les sorties. DDRx... Initialisez bien vos variables
+    // Port directions
     DDRA = OUTPUT_PORT;
     DDRB = OUTPUT_PORT;
     DDRC = OUTPUT_PORT;
     DDRD = INPUT_PORT;
 
-    // cette procédure ajuste le registre EIMSK
-    // de l’ATmega324PA pour permettre les interruptions externes
+    // Allows interruption of INT0
     EIMSK |= (1 << INT0);
 
-    // il faut sensibiliser les interruptions externes aux
-    // changements de niveau du bouton-poussoir
-    // en ajustant le registre EICRA
+    // Any edge of INT0 generates an interrupt request
     EICRA |= (1<<ISC00); 
 
-    // sei permet de recevoir à nouveau des interruptions.
+    // sei deblocks interruptions
     sei();
 }
 
 
-//Interruption du timer
+// Timer interrupt function
 ISR(TIMER1_COMPA_vect){
     if(!(PIND & 0x04) && !conditionFulfilled && counterRunTimes==120){
         conditionFulfilled = true;
@@ -106,64 +130,57 @@ ISR(TIMER1_COMPA_vect){
 }
 
 
-// placer le bon type de signal d'interruption
-// à prendre en charge en argument
+// Button interrupt function
 ISR(INT0_vect)
 {
-    // laisser un delai avant de confirmer la réponse du
-    // bouton-poussoir: environ 30 ms (anti-rebond)        
+    // debounce       
     _delay_ms(30);
     if (!(PIND & 0x04))
     {
-        //partir minuterie
-        partirMinuterie();
+        //start timer
+        startTimer();
     }
     else if(!conditionFulfilled){
         conditionFulfilled=true;
         increaseState(currentState);
     }
-    // Voir la note plus bas pour comprendre cette instruction et son rôle
+    // Clear flag to permit new interrupts of INT0
     EIFR |= (1 << INTF0);
 }
 
 
 //Routine
-//Green 0,5 seconds, no color for 2 sec
+//Green blinking 0,5 seconds, no color for 2 sec
 //Red blinks 2 times/second for counter/2 times
 //Green for 1 second
 //return to init state
 void routine(){
-    PORTC=COLOR_GREEN;
-    for(uint8_t i=0;i<50;i++){ //delay 0,5 s
-        _delay_loop_2(20000); //4 CPU cycles * 20 000=80 000
-        //80 000*50=4 000 000 instructions = 0,5sec
+    for(uint8_t i=0;i<5;i++){ //5*0,1s=0,5s
+        PORTC=COLOR_GREEN;
+        delayMs(uint16_t(50)); //delay 50 ms=0,05s
+        PORTC=NO_COLOR;
+        delayMs(uint16_t(50)); //delay 50 ms=0,05s
     }
+    
     PORTC=NO_COLOR;
-    for(uint8_t i=0;i<200;i++){ //delay 2 s
-        _delay_loop_2(20000); //4 CPU cycles * 20 000=80 000
-        //80 000*200=16 000 000 instructions = 2sec
-    }
+    delayMs(uint16_t(2000)); //delay 2 s
+       
 
     uint8_t currentCounter;
     currentCounter=counterRunTimes;
 
     for(uint8_t i =0;i<currentCounter; i++){
         PORTC=COLOR_RED;
-        _delay_loop_2(20000); //0,1 sec
+        delayMs(uint16_t(100)); //delay 100 ms=0,1s
         PORTC=NO_COLOR;
-        for(uint8_t i=0;i<50;i++){ //delay 0,5 s
-            _delay_loop_2(20000); //4 CPU cycles * 20 000=80 000
-            //80 000*50=4 000 000 instructions = 0,5sec
-        }
+        delayMs(uint16_t(400)); //delay 400 ms=0,4s
     }
 
 
     PORTC=COLOR_GREEN;
-    for(uint8_t i=0;i<100;i++){ //delay 1 s
-        _delay_loop_2(20000); //4 CPU cycles * 20 000=80 000
-        //80 000*100=8 000 000 instructions = 1sec
-    }
-    currentState=State::INIT;//return init state
+    delayMs(uint16_t(1000)); //delay 1000 ms=1s
+    currentState=State::INIT;//return to init state
+    conditionFulfilled=false; //reset condition bool
 }
 
 
@@ -181,7 +198,7 @@ int main()
                 PORTC=NO_COLOR;
                 break;
 
-            case State::CONDITION: //Green 0,5 seconds, wait 2 sec                
+            case State::CONDITION: //Green 0,5 seconds, wait 2 sec ...                
                 routine();
                 break;
                 
